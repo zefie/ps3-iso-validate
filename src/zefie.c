@@ -6,11 +6,17 @@
 #include <ctype.h>
 #include "iso.h"
 #include "md5.h"
+#include "manamain.h"
 
+#ifdef __CYGWIN__
+off64_t seek64(int fd, off64_t offset, int origin) {
+	return (off64_t) lseek(fd, offset, origin);
+}
+#else
 off64_t seek64(int fd, off64_t offset, int origin) {
 	return lseek64(fd, offset, origin);
 }
-
+#endif
 void Delete(char *file) {
 	//unlink(file);
 }

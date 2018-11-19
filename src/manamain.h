@@ -8,7 +8,7 @@
 #define TRUE 		1
 #define FALSE 		0
 #define SUCCESS 	1
-#define FAILED	 	0
+#define ZFAILED	 	0
 #define ON		1
 #define OFF		0
 #define FOUND		1
@@ -68,5 +68,6 @@
 
 u8 GetParamSFO(const char *name, char *value, int pos, char *path);
 u8 Get_ID(char *gpath, u8 platform, char *game_ID);
+u8 path_info(char *path);
 
 #endif

@@ -1,7 +1,17 @@
 #ifndef _ZEFIE_H
 #define _ZEFIE_H
 
-#define _LARGEFILE64_SOURCE 1
+#define _LARGEFILE64_SOURCE
+
+#if defined(MSDOS) || defined(OS2) || defined(WIN32) || defined(__CYGWIN__)
+#  include <fcntl.h>
+#  include <io.h>
+#  define SET_BINARY_MODE(file) setmode(fileno(file), O_BINARY)
+#else
+#  define SET_BINARY_MODE(file)
+#endif
+
+
 #include <fcntl.h>
 #include <sys/types.h>
 #include <sys/stat.h>
@@ -20,17 +30,12 @@
 //#define strcasecmp _stricmp
 //#define strncasecmp _strnicmp
 
-#define FAILED 0
-#define SUCCESS 1
-#define NO 0
-#define YES 1
-
-
 typedef uint8_t u8;
 typedef uint16_t u16;
 typedef uint32_t u32;
 typedef uint64_t u64;
 typedef int64_t s64;
+typedef _off64_t off64_t;
 
 u64 prog_bar1_value;
 u64 total_size;
@@ -44,7 +49,7 @@ u16 nb_file;
 #endif
 
 void print_load(char *format, ...);
-off_t seek64(int fd, off_t offset, int origin);
+off64_t seek64(int fd, off64_t offset, int origin);
 void Delete(char *file);
 int strncmpi(const char *s1, const char *s2, size_t n);
 

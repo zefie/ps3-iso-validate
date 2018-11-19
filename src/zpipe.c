@@ -12,8 +12,11 @@
                      Avoid some compiler warnings for input and output buffers
  */
 
+#include <stdio.h>
+#include <string.h>
+#include <assert.h>
+#include <zlib.h>
 #include "zefie.h"
-#include "zlib.h"
 
 #if defined(MSDOS) || defined(OS2) || defined(WIN32) || defined(__CYGWIN__)
 #  include <fcntl.h>
@@ -98,18 +101,14 @@ int inf(FILE *source, FILE *dest)
     unsigned char in[CHUNK];
     unsigned char out[CHUNK];
 
-	fseek(source, 0, 2);    /* file pointer at the end of file */
-	int filesize = ftell(source);   /* take a position of file pointer un size variable */
-	fseek(source, 0, 0);
-
     /* allocate inflate state */
     strm.zalloc = Z_NULL;
     strm.zfree = Z_NULL;
     strm.opaque = Z_NULL;
     strm.avail_in = 0;
     strm.next_in = Z_NULL;
-	ret = inflateInit_(&strm, "2", filesize);
-    //ret = inflateInit2 (& strm, windowBits | ENABLE_ZLIB_GZIP);
+	//ret = inflateInit(&strm);
+    ret = inflateInit2 (& strm, windowBits | ENABLE_ZLIB_GZIP);
     if (ret != Z_OK)
         return ret;
 

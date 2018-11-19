@@ -36,6 +36,7 @@ along with MAKEPS3ISO, EXTRACTPS3ISO and PATCHPS3ISO.  If not, see <http://www.g
 */
 
 #include "iso.h"
+#include "manamain.h"
 #include <ctype.h>
 #include <time.h>
 #include <unistd.h>
@@ -1045,7 +1046,7 @@ static int calc_entries(char *path, int parent)
 
 			if (stat(path, &s) != 0) { closedir(dir); print_load("Error: Not found: %s", path); path[len] = 0; return Error_INPUT_FILE_NOT_EXISTS; }
 
-			is_dir_entry = entry->d_type & IS_DIRECTORY;
+			is_dir_entry = path_info(strcat(path,entry->d_name)) == _DIRECTORY;
 
 			if (is_dir_entry) { nfolders++; continue; }
 
@@ -1167,7 +1168,7 @@ static int calc_entries(char *path, int parent)
 					path[l] = 0;
 					strcat(path, entry->d_name);
 
-					is_dir_entry = entry->d_type & IS_DIRECTORY;
+					is_dir_entry = path_info(strcat(path,entry->d_name)) == _DIRECTORY;
 
 					if (is_dir_entry)
 					{
@@ -1257,7 +1258,7 @@ static int calc_entries(char *path, int parent)
 					path[l] = 0;
 					strcat(path, entry->d_name);
 
-					is_dir_entry = entry->d_type & IS_DIRECTORY;
+					is_dir_entry = path_info(strcat(path,entry->d_name)) == _DIRECTORY;
 
 					if (!is_dir_entry) continue;
 
@@ -2936,8 +2937,11 @@ int extractps3iso(char *f_iso, char *g_path, int split)
 	split_files = split;
 
 	len_path2 = strlen(path2);
-
+#ifdef __MINGW32__
+	mkdir(path2);
+#else
 	mkdir(path2, 0766); // make directory
+#endif
 
 	u64 avail = get_disk_free_space(path2);
 
@@ -3079,7 +3083,11 @@ int extractps3iso(char *f_iso, char *g_path, int split)
 
 		strcat(path2, string2);
 
-		mkdir(path2, 0766);
+#ifdef __MINGW32__
+		mkdir(path2);
+#else
+		mkdir(path2, 0766); // make directory
+#endif
 
 		path2[len_path2] = 0;
 

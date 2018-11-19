@@ -7,16 +7,13 @@
 #include "iso.h"
 #include "md5.h"
 #include "manamain.h"
+#include "portable_endian.h"
 
-uint32_t reverse32(uint32_t val)
-{
-   return ((val>>24)&0x000000FF) | ((val>>8)&0x0000FF00) | ((val<<8)&0x00FF0000) | ((val<<24)&0xFF000000);
-}
+#define ZFAILED 0
+#define SUCCESS 1
+#define NO 0
+#define YES 1
 
-uint16_t reverse16(uint16_t val)
-{
-   return (((val>>8)&0x00FF) | ((val<<8)&0xFF00));
-}
 
 char *GetExtention(char *path)
 {
@@ -114,7 +111,7 @@ u8 get_SectorSize(FILE*  fd, u32 *SectorSize, u32 *jmp)
 	}
 	free(data);
 
-	if(sector_size==0) return FAILED;
+	if(sector_size==0) return ZFAILED;
 
 	*SectorSize = sector_size;
 	*jmp = jp;
@@ -126,23 +123,25 @@ u8 get_SectorSize(FILE*  fd, u32 *SectorSize, u32 *jmp)
 u8 get_FileOffset(FILE* fd, char *path, u64 *FileOffset, u32 *FileSize)
 {
 	u32 root_table = 0;
+	u32 root_table_be = 0;
 	u32 SectSize=0;
 	u32 JP=0;
 
-	if( get_SectorSize(fd, &SectSize, &JP) == FAILED) return FAILED;
+	if( get_SectorSize(fd, &SectSize, &JP) == ZFAILED) return ZFAILED;
+	fseek(fd, SectSize*0x10+0xA2+JP, SEEK_SET);
 
-	//fseek(fd, SectSize*0x10+0xA2+JP, SEEK_SET);
-	fseek(fd, SectSize*288, SEEK_SET);
+	fread(&root_table_be, sizeof(u32), 1, fd);
+	root_table = be32toh(root_table_be);
 
-	fread(&root_table, sizeof(u32), 1, fd);
-//	if(root_table == 0) return FAILED;
-//	fseek(fd, SectSize*root_table, SEEK_SET);
+	if(root_table == 0) return ZFAILED;
 
+	fseek(fd, SectSize*root_table, SEEK_SET);
+	
 	char *sector = (char *) malloc(SectSize);
 
 	if(sector == NULL) {
 		print_load("Error : get_FileOffset : malloc");
-		return FAILED;
+		return ZFAILED;
 	}
 
 	int k=0;
@@ -154,34 +153,34 @@ u8 get_FileOffset(FILE* fd, char *path, u64 *FileOffset, u32 *FileSize)
 
 		if(path[i] == '/' || i==len) {
 			strncpy(item_name, path+i-k, k);
-			printf("item: %s\n",item_name);
-			printf("want: %s\n",path);
-
 			memset(sector, 0, SectSize);
 			u32 offset = 0;
-			fread(sector, 1, SectSize, fd);
+			fread(sector, 1, SectSize, fd);			
+			
 			for(int j=0; j<SectSize; j++) {
 				if(strncmpi((char *) &sector[j], (char *) item_name , k)==0) {
-					printf("sect: %s\n",&sector[j]);
+					
 					if(i==len) {
 						memcpy(&offset, &sector[j-0x1B], 4);
-						*FileOffset = (u64)offset*(u64)SectSize+(u64)JP;
+						offset = be32toh(offset);
+						*FileOffset = (u64)offset*(u64)(SectSize+JP);
 						u32 size=0;
 						memcpy(&size, &sector[j-0x13], 4);
+						size = be32toh(size);
 						*FileSize = size;
 						free(sector);
 						return SUCCESS;
 					}
 					memcpy(&offset, &sector[j-0x1B], 4);
+					offset = be32toh(offset);
 					fseek(fd, SectSize*offset, SEEK_SET);
 
 					break;
 				}
 			}
 			if(offset == 0) {
-				printf("offs: %i\n",offset);
 				free(sector);
-				return FAILED;
+				return ZFAILED;
 			}
 			memset(item_name, 0, sizeof(item_name));
 			k=0;
@@ -190,7 +189,7 @@ u8 get_FileOffset(FILE* fd, char *path, u64 *FileOffset, u32 *FileSize)
 	}
 
 	free(sector);
-	return FAILED;
+	return ZFAILED;
 }
 
 u8 is_iso(char *file_name)
@@ -268,7 +267,7 @@ char *LoadFileFromISO(u8 prog, char *path, char *filename, int *size)
 
 	ret = get_FileOffset(f, filename, &file_offset, (u32 *) &file_size);
 	//print_load("Error : %s %llX", path, file_offset);
-	if(file_offset==0 || file_size==0 || ret == FAILED) {fclose(f); return NULL;}
+	if(file_offset==0 || file_size==0 || ret == ZFAILED) {fclose(f); return NULL;}
 
 	u8 split666 = is_66600(path);
 
@@ -338,14 +337,14 @@ u8 ISOtype(char *isoPath)
 	FILE* f;
 	f = fopen(isoPath, "rb");
 	if(f==NULL) {
-		//print_load("Error : failed to open %s", isoPath);
+		//print_load("Error : ZFAILED to open %s", isoPath);
 		return NO;
 	}
 
 	u32 SectSize=0;
 	u32 JP=0;
 
-	if( get_SectorSize(f, &SectSize, &JP) == FAILED) { 
+	if( get_SectorSize(f, &SectSize, &JP) == ZFAILED) { 
 		fclose(f);
 		return _ISO;
 	}
@@ -353,7 +352,7 @@ u8 ISOtype(char *isoPath)
 	char *mem =  (char *) malloc(0x40);
 	if(mem==NULL) {
 		fclose(f);
-		//print_load("Error : malloc failed");
+		//print_load("Error : malloc ZFAILED");
 		return NO;
 	}
 	memset(mem, 0, sizeof(mem));
@@ -563,7 +562,7 @@ u8 md5_filefromISO(char *path, char *filename, unsigned char output[16])
 	f = fopen(path, "rb");
 	if(f==NULL) {
 		memset(output, 0, sizeof(output));
-		return FAILED;
+		return ZFAILED;
 	}
 
 	u64 file_offset=0;
@@ -572,7 +571,7 @@ u8 md5_filefromISO(char *path, char *filename, unsigned char output[16])
 
 	ret = get_FileOffset(f, filename, &file_offset, (u32 *) &file_size);
 	//print_load("Warning : %s offset %llX, size %llX, ret %d", filename, file_offset, file_size, ret);
-	if(file_offset==0 || file_size==0 || ret == FAILED) {fclose(f);return FAILED;}
+	if(file_offset==0 || file_size==0 || ret == ZFAILED) {fclose(f);return ZFAILED;}
 
 	u8 split666 = is_66600(path);
 	if(is_splitted_iso(path)==YES || split666) {
@@ -598,7 +597,7 @@ u8 md5_filefromISO(char *path, char *filename, unsigned char output[16])
 				if(i!=0) {
 					fclose(f);
 					f = fopen(iso_path, "rb");
-					if(f==NULL) return FAILED;
+					if(f==NULL) return ZFAILED;
 				}
 				break;
 			}
@@ -686,8 +685,8 @@ u8 md5_file(char *path, unsigned char output[16])
 
 	f = fopen( path, "rb");
 	if( f == NULL ) {
-		print_load("Error : md5_file, failed to open file");
-		return FAILED;
+		print_load("Error : md5_file, ZFAILED to open file");
+		return ZFAILED;
 	}
 
 	md5_starts( &ctx );
@@ -723,17 +722,17 @@ u8 *LoadMEMfromISO(char *iso_file, u32 sector, u32 offset, u32 size)
 	print_load("Open %s", iso_file);
 	f = fopen(iso_file, "rb");
 	if(f==NULL) {
-		print_load("Error : LoadMEMfromISO, failed to fopen");
+		print_load("Error : LoadMEMfromISO, FAILED to fopen");
 		return NULL;
 	}
-	if( get_SectorSize(f, &SectSize, &JP) == FAILED) {
+	if( get_SectorSize(f, &SectSize, &JP) == ZFAILED) {
 		fclose(f);
-		print_load("Error : LoadMEMfromISO, failed to get_SectorSize");
+		print_load("Error : LoadMEMfromISO, FAILED to get_SectorSize");
 		return NULL;
 	}
 	u8 *mem = (u8*) malloc(size+1);
 	if(mem==NULL) {
-		print_load("Error : LoadMEMfromISO, failed to malloc");
+		print_load("Error : LoadMEMfromISO, FAILED to malloc");
 		fclose(f);
 		return NULL;
 	}
@@ -774,7 +773,7 @@ u8 *LoadMEMfromISO(char *iso_file, u32 sector, u32 offset, u32 size)
 
 	//print_load("ISO offset : %016llX", iso_offset);
 	if( fread(mem, size, 1, f) != size) {
-		print_load("Error : LoadMEMfromISO, failed to fread");
+		print_load("Error : LoadMEMfromISO, ZFAILED to fread");
 		free(mem);
 		fclose(f);
 		return NULL;
@@ -806,7 +805,7 @@ int search_IRD(char *titleID, char *dir_path, char *IRD_path)
 
 	while ((dir = readdir(d))) {
 		if(!strcmp(dir->d_name, ".") || !strcmp(dir->d_name, "..")) continue;
-		if(dir->d_type & DT_DIR) continue;
+		 if (path_info(strcat(dir_path,strcat("/",dir->d_name))) != _DIRECTORY) continue;
 
 		sprintf(temp, "%s/%s", dir_path, dir->d_name);
 
@@ -832,7 +831,7 @@ FILE* openSFO(char *path, u32 *start_offset, u32 *size)
 	if(type != _ISO_PS3 && type != _ISO_PSP && type != _JB_PS3 && type != _JB_PSP && type != _SFO) return NULL;
 
 	if(type == _SFO) {
-		sfo = fopen(path, "rb+");
+		sfo = fopen(path, "rb");
 		if(sfo==NULL) return NULL;
 
 		fseek(sfo , 0 , SEEK_END);
@@ -844,8 +843,7 @@ FILE* openSFO(char *path, u32 *start_offset, u32 *size)
 		return sfo;
 	} else
 	if(type == _ISO_PS3) {
-
-		sfo = fopen(path, "rb+");
+		sfo = fopen(path, "rb");
 		if(sfo==NULL) return NULL;
 		u64 file_offset=0;
 		u8 ret=0;
@@ -853,7 +851,7 @@ FILE* openSFO(char *path, u32 *start_offset, u32 *size)
 
 		ret = get_FileOffset(sfo, "/PS3_GAME/PARAM.SFO", &file_offset,  (u32 *) &file_size);
 
-		if(file_offset==0 || file_size==0 || ret == FAILED) {fclose(sfo); return NULL;}
+		if(file_offset==0 || file_size==0 || ret == ZFAILED) {fclose(sfo); return NULL;}
 
 		*start_offset=file_offset;
 		*size=file_size;
@@ -861,7 +859,7 @@ FILE* openSFO(char *path, u32 *start_offset, u32 *size)
 		return sfo;
 	} else
 	if(type == _ISO_PSP) {
-		sfo = fopen(path, "rb+");
+		sfo = fopen(path, "rb");
 		if(sfo==NULL) return NULL;
 		u64 file_offset=0;
 		u8 ret=0;
@@ -869,7 +867,7 @@ FILE* openSFO(char *path, u32 *start_offset, u32 *size)
 
 		ret = get_FileOffset(sfo, "/PSP_GAME/PARAM.SFO", &file_offset,  (u32 *) &file_size);
 
-		if(file_offset==0 || file_size==0 || ret == FAILED) {fclose(sfo); return NULL;}
+		if(file_offset==0 || file_size==0 || ret == ZFAILED) {fclose(sfo); return NULL;}
 
 		*start_offset=file_offset;
 		*size=file_size;
@@ -882,7 +880,7 @@ FILE* openSFO(char *path, u32 *start_offset, u32 *size)
 		if(path_info(SFO_path) == _NOT_EXIST) sprintf(SFO_path, "%s/PS3_GAME/PARAM.SFO", path);
 		if(path_info(SFO_path) == _NOT_EXIST) return NULL;
 
-		sfo = fopen(SFO_path, "rb+");
+		sfo = fopen(SFO_path, "rb");
 		if(sfo==NULL) return NULL;
 
 		fseek(sfo , 0 , SEEK_END);
@@ -898,7 +896,7 @@ FILE* openSFO(char *path, u32 *start_offset, u32 *size)
 
 		sprintf(SFO_path, "%s/PSP_GAME/PARAM.SFO", path);
 
-		sfo = fopen(SFO_path, "rb+");
+		sfo = fopen(SFO_path, "rb");
 		if(sfo==NULL) return NULL;
 
 		fseek(sfo , 0 , SEEK_END);
@@ -918,9 +916,9 @@ u8 GetParamSFO(const char *name, char *value, int pos, char *path)
 	FILE* sfo=NULL;
 	u32 sfo_start=0;
 	u32 sfo_size=0;
-
+	
 	sfo = openSFO(path, &sfo_start, &sfo_size);
-	if(sfo==NULL) return FAILED;
+	if(sfo==NULL) return ZFAILED;
 
 	uint32_t key_start;
 	uint32_t data_start;
@@ -933,10 +931,7 @@ u8 GetParamSFO(const char *name, char *value, int pos, char *path)
 	fseek(sfo, 0x8 + sfo_start, SEEK_SET);
 	fread(&key_start, sizeof(uint32_t), 1, sfo);
 	fread(&data_start, sizeof(uint32_t), 1, sfo);
-	key_start=reverse32(key_start);
-	data_start=reverse32(data_start);
 	fseek(sfo, key_start + sfo_start, SEEK_SET);
-
 	do {
 		c=fgetc(sfo);
 		for(i=0; i <=strlen(name)-1 ; i++) {
@@ -949,23 +944,21 @@ u8 GetParamSFO(const char *name, char *value, int pos, char *path)
 			} else break;
 		}
 	} while (ftell(sfo) - sfo_start < sfo_size);
-	{fclose(sfo); return FAILED;}
+	{fclose(sfo); return ZFAILED;}
 	out1:
-	if(key_name==0) {fclose(sfo); return FAILED;}
+	if(key_name==0) {fclose(sfo); return ZFAILED;}
 	key_name -= key_start;
 	fseek(sfo, 0x14 + sfo_start, SEEK_SET);
-
+	
 	while(temp16 < key_name) {
 		fread(&temp16, sizeof(uint16_t), 1, sfo);
-		temp16=reverse16(temp16);
 		if(key_name == temp16) break;
 		fseek(sfo, 0xE, SEEK_CUR);
 	}
 
-	if(temp16 > key_name)  {fclose(sfo);return FAILED;}
+	if(temp16 > key_name)  {fclose(sfo);return ZFAILED;}
 	fseek(sfo, 0xA, SEEK_CUR);
 	fread(&temp32, sizeof(uint32_t), 1, sfo);
-	temp32 = reverse32(temp32);
 	data_name = data_start + temp32;
 	fseek(sfo, data_name + sfo_start, SEEK_SET);
 	fgets(value, 128, sfo);
@@ -988,7 +981,7 @@ u8 Get_ID(char *gpath, u8 platform, char *game_ID)
 		char *mem = NULL;
 		int size;
 		mem = LoadFileFromISO(NO, gpath, "SYSTEM.CNF", &size);
-		if(mem==NULL) return FAILED;
+		if(mem==NULL) return ZFAILED;
 		if( strstr(mem, ";") != NULL) strtok(mem, ";");
 		if( strstr(mem, "\\") != NULL) strcpy(game_ID, &strrchr(mem, '\\')[1]); else
 		if( strstr(mem, ":") != NULL) strcpy(game_ID, &strrchr(mem, ':')[1]);
@@ -1000,13 +993,13 @@ u8 Get_ID(char *gpath, u8 platform, char *game_ID)
 		char *mem = NULL;
 		int size;
 		mem = LoadFile(temp, &size);
-		if(mem==NULL) return FAILED;
+		if(mem==NULL) return ZFAILED;
 		if( strstr(mem, ";") != NULL) strtok(mem, ";");
 		if( strstr(mem, "\\") != NULL) strcpy(game_ID, &strrchr(mem, '\\')[1]); else
 		if( strstr(mem, ":") != NULL) strcpy(game_ID, &strrchr(mem, ':')[1]);
 		free(mem);
 	}
-	else return FAILED;
+	else return ZFAILED;
 
 	return SUCCESS;
 

@@ -30,7 +30,8 @@
 
 #include "zefie.h"
 #include "zpipe.h"
-#include "zlib.h"
+#include "portable_endian.h"
+#include <zlib.h>
 
 #define ISODCL(from, to) (to - from + 1)
 #define SWAP16(x) (x) // NO SWAP ! ((((u16)(x))>>8) | ((x) << 8))
@@ -39,7 +40,7 @@
 #define YES			1
 #define NO 			0
 #define SUCCESS		1
-#define FAILED 		0
+#define ZFAILED 		0
 
 extern void print_load(char *format, ...);
 extern void Delete(char* path);
@@ -89,16 +90,6 @@ typedef struct
 	u64 MD5[2];
 	u64 size;
 } IRDU_fileInfo;
-
-extern uint32_t reverse32(uint32_t val);
-
-u64 reverse64(u64 x) {
-
-	x = (x & 0x00000000FFFFFFFFULL) << 32 | (x & 0xFFFFFFFF00000000ULL) >> 32;
-	x = (x & 0x0000FFFF0000FFFFULL) << 16 | (x & 0xFFFF0000FFFF0000ULL) >> 16;
-	x = (x & 0x00FF00FF00FF00FFULL) << 8 | (x & 0xFF00FF00FF00FF00ULL) >> 8;
-	return x;
-}
 
 u8 IRD_match(char *titleID, char *IRD_PATH)
 {
@@ -187,9 +178,8 @@ u8 Extract_IRD(char *IRD_PATH, IRDU_header *header)
 		fclose(in);
 		fclose(out);
 		//Delete(IRDU_PATH);
-		return FAILED;
+		return ZFAILED;
 	}
-
 	fclose(in);
 	fclose(out);
 
@@ -218,7 +208,7 @@ u8 Extract_IRD(char *IRD_PATH, IRDU_header *header)
 	u32 Zfoot_size; // endian
 	fread(&Zhead_size, sizeof(u32), 1, in);
 
-	Zhead_size = reverse32(Zhead_size);
+	//Zhead_size = be32toh(Zhead_size);
 
 	u32 Zfoot_off = ftell(in) + Zhead_size;
 
@@ -228,7 +218,7 @@ u8 Extract_IRD(char *IRD_PATH, IRDU_header *header)
 
 	fseek(in, Zfoot_off, SEEK_SET);
 	fread(&Zfoot_size, sizeof(u32), 1, in);
-	Zfoot_size = reverse32(Zfoot_size);
+	//Zfoot_size = be32toh(Zfoot_size);
 
 	out = fopen(IRDF_PATH, "wb");
 	inf(in, out);
@@ -299,14 +289,13 @@ u8 Get_IRDMD5(char *IRD_PATH, IRDU_fileInfo *fileInfo)
 	strcat(IRDMD5_PATH, "md5");
 
 	in = fopen(IRDMD5_PATH, "rb");
-	if (in == NULL) print_load((char *)"Error : failed to read irdmd5");
+	if (in == NULL) print_load((char *)"Error : ZFAILED to read irdmd5");
 	size = fseek(in, 0, SEEK_END);
 	size = ftell(in);
 	fseek(in, 0, SEEK_SET);
 
 	for (i = 0; i < size / 8; i++) {
 		fread(&sector_r, 1, sizeof(u64), in);
-		sector_r = reverse64(sector_r);
 		fread(&MD5_r, 2, sizeof(u64), in);
 
 		if (sector_r == fileInfo->sector) {
@@ -333,10 +322,10 @@ static int get_input_char()
 
 static int isonum_731(unsigned char * p)
 {
-	return ((p[0] & 0xff)
+	return (((p[0] & 0xff)
 		| ((p[1] & 0xff) << 8)
 		| ((p[2] & 0xff) << 16)
-		| ((p[3] & 0xff) << 24));
+		| ((p[3] & 0xff) << 24)));
 }
 
 static int isonum_733(unsigned char * p)
@@ -427,7 +416,6 @@ static void UTF16_to_UTF8(u16 *stw, u8 *stb)
 
 		stw++;
 	}
-
 	*stb = 0;
 }
 
@@ -534,7 +522,7 @@ int Check_IRDMD5(char *IRD_PATH, char *GAME_PATH)
 	sprintf(split_file[0].path, "%s", path1);
 
 	if (stat(split_file[0].path, &s)<0) {
-		print_load((char *)"Error: ISO file don't exists!"); get_input_char(); return -1;
+		print_load((char *)"Error: ISO file doesn't exist!"); get_input_char(); return -1;
 	}
 	split_file[0].size = s.st_size;
 	split_file[1].size = 0; // split off
@@ -811,14 +799,14 @@ int Check_IRDMD5(char *IRD_PATH, char *GAME_PATH)
 
 
 					if (real_MD5[0] == 0) {
-						sprintf(msg, "| NOT FOUND		| %s\n", fileInfo.FILE_PATH);
+						sprintf(msg, "| NOT FOUND	| %s | %i | %i", fileInfo.FILE_PATH, file_lba, file_size);
 					}
 					else {
 						if (real_MD5[0] == fileInfo.MD5[0] && real_MD5[1] == fileInfo.MD5[1]) {
-							sprintf(msg, "| VALID			| %s\n", fileInfo.FILE_PATH);
+							sprintf(msg, "| VALID		| %s", fileInfo.FILE_PATH);
 						}
 						else {
-							sprintf(msg, "| MODIFIED		| %s\n", fileInfo.FILE_PATH);
+							sprintf(msg, "| MODIFIED	| %s", fileInfo.FILE_PATH);
 						}
 					}
 					print_load(msg);
@@ -878,13 +866,14 @@ int IRDMD5(char *IRD_PATH, char *GAME_PATH)
 	IRDU_header ird_info;
 	char msg[1024];
 	char LOG_PATH[255];
+
 	bool result = false;
 
 	u8 gameiso = is_iso(GAME_PATH);
 
-	if (Extract_IRD(IRD_PATH, &ird_info) == FAILED) {
+	if (Extract_IRD(IRD_PATH, &ird_info) == ZFAILED) {
 		print_load((char *)"Error : Extract IRD");
-		return FAILED;
+		return ZFAILED;
 	}
 
 
