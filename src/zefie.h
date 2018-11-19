@@ -49,6 +49,7 @@ u16 nb_file;
 #endif
 
 void print_load(char *format, ...);
+unsigned char * bin_to_strhex(const unsigned char *bin, unsigned int binsz, unsigned char **result);
 off64_t seek64(int fd, off64_t offset, int origin);
 void Delete(char *file);
 int strncmpi(const char *s1, const char *s2, size_t n);

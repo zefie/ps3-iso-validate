@@ -9,12 +9,6 @@
 #include "manamain.h"
 #include "portable_endian.h"
 
-#define ZFAILED 0
-#define SUCCESS 1
-#define NO 0
-#define YES 1
-
-
 char *GetExtention(char *path)
 {
     int n = strlen(path);
@@ -626,7 +620,7 @@ u8 md5_filefromISO(char *path, char *filename, unsigned char output[16])
 	while(read < file_size) {
 		if(read+wrlen > file_size) wrlen = (u32)file_size-read;
 		fread(buf, sizeof(u8), wrlen, f);
-		if(is_bin) fseek(f, 0x130, SEEK_CUR);
+		//if(is_bin) fseek(f, 0x130, SEEK_CUR);
 		read += wrlen;
 		prog_bar1_value = (read*100)/file_size;
 		md5_update(&ctx, buf, wrlen);
@@ -685,7 +679,7 @@ u8 md5_file(char *path, unsigned char output[16])
 
 	f = fopen( path, "rb");
 	if( f == NULL ) {
-		print_load("Error : md5_file, ZFAILED to open file");
+		print_load("Error : md5_file, FAILED to open file");
 		return ZFAILED;
 	}
 
@@ -773,7 +767,7 @@ u8 *LoadMEMfromISO(char *iso_file, u32 sector, u32 offset, u32 size)
 
 	//print_load("ISO offset : %016llX", iso_offset);
 	if( fread(mem, size, 1, f) != size) {
-		print_load("Error : LoadMEMfromISO, ZFAILED to fread");
+		print_load("Error : LoadMEMfromISO, FAILED to fread");
 		free(mem);
 		fclose(f);
 		return NULL;

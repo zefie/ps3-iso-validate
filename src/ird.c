@@ -31,16 +31,14 @@
 #include "zefie.h"
 #include "zpipe.h"
 #include "portable_endian.h"
+#include "manamain.h"
 #include <zlib.h>
 
 #define ISODCL(from, to) (to - from + 1)
-#define SWAP16(x) (x) // NO SWAP ! ((((u16)(x))>>8) | ((x) << 8))
+//#define SWAP16(x) (x) // NO SWAP ! ((((u16)(x))>>8) | ((x) << 8))
+#define SWAP16 be16toh
 #define MAX_ISO_PATHS 4096
 
-#define YES			1
-#define NO 			0
-#define SUCCESS		1
-#define ZFAILED 		0
 
 extern void print_load(char *format, ...);
 extern void Delete(char* path);
@@ -289,7 +287,7 @@ u8 Get_IRDMD5(char *IRD_PATH, IRDU_fileInfo *fileInfo)
 	strcat(IRDMD5_PATH, "md5");
 
 	in = fopen(IRDMD5_PATH, "rb");
-	if (in == NULL) print_load((char *)"Error : ZFAILED to read irdmd5");
+	if (in == NULL) print_load((char *)"Error : FAILED to read irdmd5");
 	size = fseek(in, 0, SEEK_END);
 	size = ftell(in);
 	fseek(in, 0, SEEK_SET);
@@ -618,13 +616,13 @@ int Check_IRDMD5(char *IRD_PATH, char *GAME_PATH)
 		memcpy(wstring, &sectors[p], snamelen);
 		UTF16_to_UTF8(wstring, (u8 *)string);
 		if (idx >= MAX_ISO_PATHS) {
-			print_load((char *)"Error :Too much folders (max %i)\n\n", MAX_ISO_PATHS);
+			print_load((char *)"Error: Too many folders (max %i)\n\n", MAX_ISO_PATHS);
 			goto err;
 		}
 
 		directory_iso2[idx].name = (char *)malloc(strlen(string) + 2);
 		if (!directory_iso2[idx].name) {
-			print_load((char *)"Error!: in directory_iso2.name malloc()\n\n");
+			print_load((char *)"Error in directory_iso2.name malloc()\n\n");
 			goto err;
 		}
 
@@ -797,17 +795,28 @@ int Check_IRDMD5(char *IRD_PATH, char *GAME_PATH)
 					if (gameiso) md5_filefromISO(GAME_PATH, fileInfo.FILE_PATH, (u8 *)real_MD5);
 					else md5_file(GAMEFILE_PATH, (u8 *)real_MD5);
 
-
-					if (real_MD5[0] == 0) {
-						sprintf(msg, "| NOT FOUND	| %s | %i | %i", fileInfo.FILE_PATH, file_lba, file_size);
-					}
-					else {
-						if (real_MD5[0] == fileInfo.MD5[0] && real_MD5[1] == fileInfo.MD5[1]) {
-							sprintf(msg, "| VALID		| %s", fileInfo.FILE_PATH);
+					char *resstr = "NOT FOUND	";
+					unsigned char *md5str;
+					bin_to_strhex((const char *)fileInfo.MD5,16,&md5str);
+					unsigned char *rmd5str;
+					bool showLocalMD5 = false;					
+					
+					if (real_MD5[0] != 0) {
+						bin_to_strhex((const char *)real_MD5,16,&rmd5str);
+						showLocalMD5 = true;
+						if (strcmp(md5str,rmd5str) != -1) {							
+							resstr = "VALID		";
 						}
 						else {
-							sprintf(msg, "| MODIFIED	| %s", fileInfo.FILE_PATH);
+							resstr = "MODIFIED	";
+							showLocalMD5 = true;
 						}
+					}
+					
+					if (showLocalMD5) {
+						sprintf(msg, "| %s | %s | %s	| %s	| %i | %i", resstr, md5str, rmd5str, fileInfo.FILE_PATH, file_lba, file_size);
+					} else {
+						sprintf(msg, "| %s | %s	| %s	| %i | %i", resstr, md5str, fileInfo.FILE_PATH, file_lba, file_size);
 					}
 					print_load(msg);
 					string2[len] = 0;
@@ -867,24 +876,24 @@ int IRDMD5(char *IRD_PATH, char *GAME_PATH)
 	char msg[1024];
 	char LOG_PATH[255];
 
-	bool result = false;
+	int result = ZFAILED;
 
 	u8 gameiso = is_iso(GAME_PATH);
 
 	if (Extract_IRD(IRD_PATH, &ird_info) == ZFAILED) {
 		print_load((char *)"Error : Extract IRD");
-		return ZFAILED;
+		return result;
 	}
 
 
 	if (gameiso) {
 		if (check_header(IRD_PATH, GAME_PATH) == SUCCESS && check_footer(IRD_PATH, GAME_PATH) == SUCCESS) {
-			result = true;
+			result = SUCCESS;
 		}
 	}
 
 	if (Check_IRDMD5(IRD_PATH, GAME_PATH) != 0) {
-		result = false;
+		result = ZFAILED;
 	}
 
 	//clean
@@ -901,5 +910,5 @@ int IRDMD5(char *IRD_PATH, char *GAME_PATH)
 	strcpy(temp, IRD_PATH);
 	strcat(temp, "md5");
 	Delete(temp);
-	return SUCCESS;
+	return result;
 }
