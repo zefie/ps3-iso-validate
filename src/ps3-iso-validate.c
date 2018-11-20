@@ -49,6 +49,11 @@ int main(int argc, char *argv[], char **envp) {
 	char* ird_path;
 	FILE *ird;
 	signal(SIGINT, INThandler);
+	printf("%s v%s\n",APP_NAME,APP_VERSION);
+#ifdef APP_VERSION_DETAILS
+	printf("%s\n",APP_VERSION_DETAILS);
+#endif
+
 	if (argc > 2) {
 		ird_path = argv[1];
 		ps3iso_path = argv[2];

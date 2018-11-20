@@ -1,6 +1,10 @@
 #ifndef _ZEFIE_H
 #define _ZEFIE_H
 
+#define APP_NAME "PS3 CLI ISO Validator"
+#define APP_VERSION "1.0"
+#define APP_VERSION_DETAILS "by zefie, with many thanks to Zarh (ManaGunZ)"
+
 #define _LARGEFILE64_SOURCE
 
 #if defined(MSDOS) || defined(OS2) || defined(WIN32) || defined(__CYGWIN__)
