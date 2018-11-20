@@ -48,6 +48,17 @@ void print_load(char *format, ...)
 	}
 }
 
+void stripStringISO9660(char *line) {
+	int i,j = 0;
+	for(i=0; line[i] != '\0'; ++i)
+    {
+        while (!( (line[i] >= 'a' && line[i] <= 'z') || (line[i] >= 'A' && line[i] <= 'Z') || (line[i] >= '0' && line[i] <= '9') || line[i] == '_' || line[i] == '.' || line[i] == '\0') )
+        {
+            line[i] = '_';
+        }
+	}
+}
+
 unsigned char *     bin_to_strhex(const unsigned char *bin, unsigned int binsz,
                                   unsigned char **result)
 {

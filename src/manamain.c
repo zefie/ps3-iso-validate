@@ -149,8 +149,8 @@ u8 get_FileOffset(FILE* fd, char *path, u64 *FileOffset, u32 *FileSize)
 			strncpy(item_name, path+i-k, k);
 			memset(sector, 0, SectSize);
 			u32 offset = 0;
-			fread(sector, 1, SectSize, fd);			
-			
+			fread(sector, 1, SectSize, fd);
+			stripStringISO9660(&item_name);		
 			for(int j=0; j<SectSize; j++) {
 				if(strncmpi((char *) &sector[j], (char *) item_name , k)==0) {
 					

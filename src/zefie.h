@@ -2,7 +2,7 @@
 #define _ZEFIE_H
 
 #define APP_NAME "PS3 CLI ISO Validator"
-#define APP_VERSION "1.0"
+#define APP_VERSION "1.01"
 #define APP_VERSION_DETAILS "by zefie, with many thanks to Zarh (ManaGunZ)"
 
 #define _LARGEFILE64_SOURCE
@@ -55,9 +55,10 @@ u8 cancel;
 
 void print_load(char *format, ...);
 unsigned char * bin_to_strhex(const unsigned char *bin, unsigned int binsz, unsigned char **result);
+void stripStringISO9660(char *line);
 off64_t seek64(int fd, off64_t offset, int origin);
 off64_t fseek64(FILE *fd, u64 offset, int origin);
-	void Delete(char *file);
+void Delete(char *file);
 int strncmpi(const char *s1, const char *s2, size_t n);
 
 #endif
