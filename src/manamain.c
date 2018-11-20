@@ -1,4 +1,3 @@
-#include "zefie.h"
 #include <sys/types.h>
 #include <stdio.h>
 #include <string.h>
@@ -8,6 +7,7 @@
 #include "md5.h"
 #include "manamain.h"
 #include "portable_endian.h"
+#include "zefie.h"
 
 char *GetExtention(char *path)
 {
@@ -88,14 +88,14 @@ u8 get_SectorSize(FILE*  fd, u32 *SectorSize, u32 *jmp)
 	int i;
 	for(i=0; i<4; i++) {
 		memset(data, 0, sizeof(data));
-		fseek(fd, all_sizes[i]*0x10, SEEK_SET);
+		fseek64(fd, all_sizes[i]*0x10, SEEK_SET);
 		fread(data, 8, 1, fd);
 		if(!memcmp((char *) data, (char *) CD01, 8)) {
 			sector_size=all_sizes[i];
 			jp=0;
 			break;
 		}
-		fseek(fd, all_sizes[i]*0x10+0x18, SEEK_SET);
+		fseek64(fd, all_sizes[i]*0x10+0x18, SEEK_SET);
 		fread(data, 8, 1, fd);
 		if(!memcmp((char *) data, (char *) CD01, 8)) {
 			sector_size=all_sizes[i];
@@ -122,14 +122,14 @@ u8 get_FileOffset(FILE* fd, char *path, u64 *FileOffset, u32 *FileSize)
 	u32 JP=0;
 
 	if( get_SectorSize(fd, &SectSize, &JP) == ZFAILED) return ZFAILED;
-	fseek(fd, SectSize*0x10+0xA2+JP, SEEK_SET);
+	fseek64(fd, SectSize*0x10+0xA2+JP, SEEK_SET);
 
 	fread(&root_table_be, sizeof(u32), 1, fd);
 	root_table = be32toh(root_table_be);
 
 	if(root_table == 0) return ZFAILED;
 
-	fseek(fd, SectSize*root_table, SEEK_SET);
+	fseek64(fd, SectSize*root_table, SEEK_SET);
 	
 	char *sector = (char *) malloc(SectSize);
 
@@ -167,7 +167,7 @@ u8 get_FileOffset(FILE* fd, char *path, u64 *FileOffset, u32 *FileSize)
 					}
 					memcpy(&offset, &sector[j-0x1B], 4);
 					offset = be32toh(offset);
-					fseek(fd, SectSize*offset, SEEK_SET);
+					fseek64(fd, SectSize*offset, SEEK_SET);
 
 					break;
 				}
@@ -297,13 +297,13 @@ char *LoadFileFromISO(u8 prog, char *path, char *filename, int *size)
 	}
 
 	u64 val64;
-	fseek(f, file_offset-0x14, SEEK_SET);
+	fseek64(f, file_offset-0x14, SEEK_SET);
 	fread(&val64, sizeof(u64), 1, f);
 
 	u8 is_bin=NO;
 	if(val64==0xFFFFFFFFFFFFFF00) is_bin=YES;
 
-	fseek(f, file_offset, SEEK_SET);
+	fseek64(f, file_offset, SEEK_SET);
 
 	char *mem = malloc(file_size);
 	if(mem == NULL) {fclose(f); return NULL;}
@@ -314,7 +314,7 @@ char *LoadFileFromISO(u8 prog, char *path, char *filename, int *size)
 		u32 wrlen = 2048;
 		if(read+wrlen > file_size) wrlen = (u32)file_size-read;
 		fread(mem+read, sizeof(u8), wrlen, f);
-		if(is_bin) fseek(f, 0x130, SEEK_CUR);
+		if(is_bin) fseek64(f, 0x130, SEEK_CUR);
 		read += wrlen;
 		if(prog) prog_bar1_value = (read*100)/file_size;
 	}
@@ -350,7 +350,7 @@ u8 ISOtype(char *isoPath)
 		return NO;
 	}
 	memset(mem, 0, sizeof(mem));
-	fseek(f, SectSize*0x10+JP, SEEK_SET);
+	fseek64(f, SectSize*0x10+JP, SEEK_SET);
 
 	fread(mem, 1, 0x40, f);
 
@@ -555,7 +555,6 @@ u8 md5_filefromISO(char *path, char *filename, unsigned char output[16])
 	FILE* f;
 	f = fopen(path, "rb");
 	if(f==NULL) {
-		memset(output, 0, sizeof(output));
 		return ZFAILED;
 	}
 
@@ -564,7 +563,8 @@ u8 md5_filefromISO(char *path, char *filename, unsigned char output[16])
 	u32 file_size=0;
 
 	ret = get_FileOffset(f, filename, &file_offset, (u32 *) &file_size);
-	//print_load("Warning : %s offset %llX, size %llX, ret %d", filename, file_offset, file_size, ret);
+
+//	print_load("Warning : %s offset %llX, size %llX, ret %d", filename, file_offset, file_size, ret);
 	if(file_offset==0 || file_size==0 || ret == ZFAILED) {fclose(f);return ZFAILED;}
 
 	u8 split666 = is_66600(path);
@@ -600,13 +600,13 @@ u8 md5_filefromISO(char *path, char *filename, unsigned char output[16])
 	}
 
 	u64 val64;
-	fseek(f, file_offset-0x14, SEEK_SET);
+	fseek64(f, file_offset-0x14, SEEK_SET);
 	fread(&val64, sizeof(u64), 1, f);
 
 	u8 is_bin=NO;
 	if(val64==0xFFFFFFFFFFFFFF00) is_bin=YES;
-
-	fseek(f, file_offset, SEEK_SET);
+	
+	fseek64(f, file_offset, SEEK_SET);
 
 	md5_context ctx;
 	u32 wrlen = 2048;
@@ -620,10 +620,12 @@ u8 md5_filefromISO(char *path, char *filename, unsigned char output[16])
 	while(read < file_size) {
 		if(read+wrlen > file_size) wrlen = (u32)file_size-read;
 		fread(buf, sizeof(u8), wrlen, f);
-		//if(is_bin) fseek(f, 0x130, SEEK_CUR);
+		if(is_bin) fseek64(f, 0x130, SEEK_CUR);
 		read += wrlen;
 		prog_bar1_value = (read*100)/file_size;
 		md5_update(&ctx, buf, wrlen);
+		//if (read == file_size) printf("Read %lu bytes from offset %llu (of %lu bytes)\n",read,file_offset,file_size);
+		if(cancel) break;
 	}
 
 	fclose(f);
@@ -631,8 +633,12 @@ u8 md5_filefromISO(char *path, char *filename, unsigned char output[16])
 	prog_bar1_value=-1;
 
 	md5_finish(&ctx, output);
-
+	
 	memset(&ctx, 0, sizeof(md5_context));
+
+	if(cancel==YES) {
+		return ZFAILED;
+	}
 
 	return SUCCESS;
 }
@@ -690,7 +696,7 @@ u8 md5_file(char *path, unsigned char output[16])
 
 	fseek (f , 0 , SEEK_END);
 	file_size = ftell (f);
-	fseek(f, 0, SEEK_SET);
+	fseek64(f, 0, SEEK_SET);
 
 	while( ( n = fread( buf, 1, sizeof( buf ), f ) ) > 0 ) {
 		uread+=n;
@@ -763,7 +769,7 @@ u8 *LoadMEMfromISO(char *iso_file, u32 sector, u32 offset, u32 size)
 		}
 	}
 
-	fseek(f, iso_offset, SEEK_SET);
+	fseek64(f, iso_offset, SEEK_SET);
 
 	//print_load("ISO offset : %016llX", iso_offset);
 	if( fread(mem, size, 1, f) != size) {
@@ -828,9 +834,9 @@ FILE* openSFO(char *path, u32 *start_offset, u32 *size)
 		sfo = fopen(path, "rb");
 		if(sfo==NULL) return NULL;
 
-		fseek(sfo , 0 , SEEK_END);
+		fseek64(sfo , 0 , SEEK_END);
 		*size = ftell (sfo);
-		fseek(sfo, 0, SEEK_SET);
+		fseek64(sfo, 0, SEEK_SET);
 
 		*start_offset=0;
 
@@ -877,9 +883,9 @@ FILE* openSFO(char *path, u32 *start_offset, u32 *size)
 		sfo = fopen(SFO_path, "rb");
 		if(sfo==NULL) return NULL;
 
-		fseek(sfo , 0 , SEEK_END);
+		fseek64(sfo , 0 , SEEK_END);
 		*size = ftell (sfo);
-		fseek(sfo, 0, SEEK_SET);
+		fseek64(sfo, 0, SEEK_SET);
 
 		*start_offset=0;
 
@@ -893,9 +899,9 @@ FILE* openSFO(char *path, u32 *start_offset, u32 *size)
 		sfo = fopen(SFO_path, "rb");
 		if(sfo==NULL) return NULL;
 
-		fseek(sfo , 0 , SEEK_END);
+		fseek64(sfo , 0 , SEEK_END);
 		*size = ftell (sfo);
-		fseek(sfo, 0, SEEK_SET);
+		fseek64(sfo, 0, SEEK_SET);
 
 		*start_offset=0;
 
@@ -922,10 +928,10 @@ u8 GetParamSFO(const char *name, char *value, int pos, char *path)
 	uint16_t temp16 = 0;
 	int i, c;
 
-	fseek(sfo, 0x8 + sfo_start, SEEK_SET);
+	fseek64(sfo, 0x8 + sfo_start, SEEK_SET);
 	fread(&key_start, sizeof(uint32_t), 1, sfo);
 	fread(&data_start, sizeof(uint32_t), 1, sfo);
-	fseek(sfo, key_start + sfo_start, SEEK_SET);
+	fseek64(sfo, key_start + sfo_start, SEEK_SET);
 	do {
 		c=fgetc(sfo);
 		for(i=0; i <=strlen(name)-1 ; i++) {
@@ -942,19 +948,19 @@ u8 GetParamSFO(const char *name, char *value, int pos, char *path)
 	out1:
 	if(key_name==0) {fclose(sfo); return ZFAILED;}
 	key_name -= key_start;
-	fseek(sfo, 0x14 + sfo_start, SEEK_SET);
+	fseek64(sfo, 0x14 + sfo_start, SEEK_SET);
 	
 	while(temp16 < key_name) {
 		fread(&temp16, sizeof(uint16_t), 1, sfo);
 		if(key_name == temp16) break;
-		fseek(sfo, 0xE, SEEK_CUR);
+		fseek64(sfo, 0xE, SEEK_CUR);
 	}
 
 	if(temp16 > key_name)  {fclose(sfo);return ZFAILED;}
-	fseek(sfo, 0xA, SEEK_CUR);
+	fseek64(sfo, 0xA, SEEK_CUR);
 	fread(&temp32, sizeof(uint32_t), 1, sfo);
 	data_name = data_start + temp32;
-	fseek(sfo, data_name + sfo_start, SEEK_SET);
+	fseek64(sfo, data_name + sfo_start, SEEK_SET);
 	fgets(value, 128, sfo);
 	if(strstr(value, "\n") != NULL ) strtok(value, "\n");
 	if(strstr(value, "\r") != NULL ) strtok(value, "\r");

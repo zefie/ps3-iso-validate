@@ -799,18 +799,22 @@ int Check_IRDMD5(char *IRD_PATH, char *GAME_PATH)
 					unsigned char *md5str;
 					bin_to_strhex((const char *)fileInfo.MD5,16,&md5str);
 					unsigned char *rmd5str;
-					bool showLocalMD5 = false;					
+					bool showLocalMD5 = false;		
+					bool endOnError = true;
+					bool hasError = false;
 					
 					if (real_MD5[0] != 0) {
 						bin_to_strhex((const char *)real_MD5,16,&rmd5str);
-						showLocalMD5 = true;
 						if (strcmp(md5str,rmd5str) != -1) {							
 							resstr = "VALID		";
 						}
 						else {
 							resstr = "MODIFIED	";
 							showLocalMD5 = true;
+							hasError = true;
 						}
+					} else {
+						hasError = true;
 					}
 					
 					if (showLocalMD5) {
@@ -818,8 +822,9 @@ int Check_IRDMD5(char *IRD_PATH, char *GAME_PATH)
 					} else {
 						sprintf(msg, "| %s | %s	| %s	| %i | %i", resstr, md5str, fileInfo.FILE_PATH, file_lba, file_size);
 					}
-					print_load(msg);
+					print_load(msg);					
 					string2[len] = 0;
+					if (endOnError && hasError)	goto err;
 				}
 
 				q += idr->length[0];
@@ -892,8 +897,8 @@ int IRDMD5(char *IRD_PATH, char *GAME_PATH)
 		}
 	}
 
-	if (Check_IRDMD5(IRD_PATH, GAME_PATH) != 0) {
-		result = ZFAILED;
+	if (Check_IRDMD5(IRD_PATH, GAME_PATH) == 0) {
+		result = SUCCESS;
 	}
 
 	//clean

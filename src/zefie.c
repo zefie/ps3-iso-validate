@@ -6,17 +6,26 @@
 #include <ctype.h>
 #include "iso.h"
 #include "md5.h"
+#include "portable_endian.h"
 #include "manamain.h"
 
-#ifdef __CYGWIN__
+#ifdef __WINDOWS__
 off64_t seek64(int fd, off64_t offset, int origin) {
 	return (off64_t) lseek(fd, offset, origin);
+}
+off64_t fseek64(FILE *fd, u64 offset, int origin) {
+	return (off64_t) _fseeki64(fd, offset, origin);
 }
 #else
 off64_t seek64(int fd, off64_t offset, int origin) {
 	return lseek64(fd, offset, origin);
 }
+off64_t fseek64(FILE *fd, u64 offset, int origin) {
+	return fseek(fd, offset, origin);
+}
 #endif
+
+
 void Delete(char *file) {
 	//unlink(file);
 }

@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include <signal.h>
 #include <string.h>
 #include <sys/stat.h>
 #include <dirent.h>
@@ -7,6 +8,15 @@
 #include "ird.h"
 #include "manamain.h"
 
+u8 cancel = NO;
+void     INThandler(int);
+
+void  INThandler(int sig)
+{
+     signal(sig, SIG_IGN);
+	 cancel = YES;
+}
+
 int usage(int v, char *app) {
 	printf("Usage: %s ird_file iso_file \n", app);
 	return v;
@@ -14,15 +24,15 @@ int usage(int v, char *app) {
 
 
 int processFile(char *file, char *ird_path) {
-	char titleID[16];
-	char title[128];
-	char fwver[8];
 	char* result;
+	char* titleID;
+	char* title;
 	int retcode = 1;
 	int i;
 
 	printf("ISO File: %s\n",file);
 	printf("IRD File: %s\n",ird_path);
+
 	printf("Starting IRD Validation of %s...\n", file);
 	if (IRDMD5(ird_path, file) == SUCCESS) {
 		result = "Valid";
@@ -38,6 +48,7 @@ int main(int argc, char *argv[], char **envp) {
 	char* ps3iso_path;
 	char* ird_path;
 	FILE *ird;
+	signal(SIGINT, INThandler);
 	if (argc > 2) {
 		ird_path = argv[1];
 		ps3iso_path = argv[2];

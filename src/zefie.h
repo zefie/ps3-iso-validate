@@ -41,6 +41,7 @@ u64 prog_bar1_value;
 u64 total_size;
 u16 nb_directory;
 u16 nb_file;
+u8 cancel;
 
 #ifndef __cplusplus
 	typedef unsigned char bool;
@@ -51,7 +52,8 @@ u16 nb_file;
 void print_load(char *format, ...);
 unsigned char * bin_to_strhex(const unsigned char *bin, unsigned int binsz, unsigned char **result);
 off64_t seek64(int fd, off64_t offset, int origin);
-void Delete(char *file);
+off64_t fseek64(FILE *fd, u64 offset, int origin);
+	void Delete(char *file);
 int strncmpi(const char *s1, const char *s2, size_t n);
 
 #endif
